@@ -78,7 +78,6 @@ include_directories(include
 
 ## Declare a cpp executable
  add_executable(raspicam_node src/raspicam_node.cpp)
- add_executable(raspicam_raw_node src/raspicam_raw_node.cpp)
 
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
@@ -86,18 +85,6 @@ include_directories(include
 
 ## Specify libraries to link a library or executable target against
  target_link_libraries(raspicam_node
-   ${catkin_LIBRARIES}
-raspicamcontrol raspicli   
-/opt/vc/lib/libbcm_host.so
-/opt/vc/lib/libvcos.so
-/opt/vc/lib/libmmal.so
-/opt/vc/lib/libmmal_core.so
-/opt/vc/lib/libmmal_util.so
-/opt/vc/lib/libmmal_vc_client.so
-/opt/vc/lib/libvchostif.a
-)
-
- target_link_libraries(raspicam_raw_node
    ${catkin_LIBRARIES}
 raspicamcontrol raspicli   
 /opt/vc/lib/libbcm_host.so
@@ -124,11 +111,11 @@ raspicamcontrol raspicli
 # )
 
 ## Mark executables and/or libraries for installation
-# install(TARGETS raspicam raspicam_node
-#   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-#   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
-# )
+ install(TARGETS raspicam_node
+   ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+   RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
 
 ## Mark cpp header files for installation
 # install(DIRECTORY include/${PROJECT_NAME}/
