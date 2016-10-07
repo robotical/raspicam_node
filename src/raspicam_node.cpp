@@ -119,7 +119,7 @@ typedef struct
    MMAL_COMPONENT_T *encoder_component;   /// Pointer to the encoder component
    MMAL_CONNECTION_T *preview_connection; /// Pointer to the connection from camera to preview
    MMAL_CONNECTION_T *encoder_connection; /// Pointer to the connection from camera to encoder
-
+   MMAL_CONNECTION_T *splitter_connection ;
    //MMAL_POOL_T *video_pool; /// Pointer to the pool of buffers used by encoder output port
    MMAL_POOL_T *camera_pool; /// Pointer to the pool of buffers used by encoder output port
    ros::Publisher *image_pub;
@@ -586,10 +586,8 @@ int init_cam(RASPIVID_STATE *state)
    MMAL_STATUS_T status;
    MMAL_PORT_T *camera_video_port = NULL;
    MMAL_PORT_T *camera_still_port = NULL;
-   MMAL_PORT_T *preview_input_port = NULL;
-   //MMAL_PORT_T *encoder_input_port = NULL;
-  // MMAL_PORT_T *encoder_output_port = NULL;
-
+   MMAL_PORT_T *splitter_input_port = NULL;
+   MMAL_PORT_T *splitter_output_port = NULL;
    bcm_host_init();
    get_status(state);
    // Register our application with the logging system
@@ -611,26 +609,34 @@ int init_cam(RASPIVID_STATE *state)
       destroy_splitter_component(state);
        return 1;
    }
-   if (!create_encoder_component(state))
+   /*if (!create_encoder_component(state))
    {
       ROS_INFO("%s: Failed to create encode component", __func__);
       destroy_camera_component(state);
       destroy_splitter_component(state);
       return 1;
-   }
+   }*/
 
       //setting up the splitter
       PORT_USERDATA * callback_data = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
-      camera_video_port   = state->splitter_component->output[1];
+      camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
+      splitter_input_port   = state->splitter_component->input[0];
+      splitter_output_port   = state->splitter_component->output[1];
+      status = connect_ports(camera_video_port, splitter_input_port, &state->splitter_connection);
+      if (status != MMAL_SUCCESS)
+      {
+            ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
+	    return 1;
+      }
       callback_data->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 8 );
       callback_data->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 8 );
       callback_data->pstate = state;
       callback_data->abort = 0;
       callback_data->id = 0;
       callback_data->frame = 0;
-      camera_video_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data;
-      PORT_USERDATA *pData = (PORT_USERDATA *)camera_video_port->userdata;
-      status = mmal_port_enable(camera_video_port, camera_buffer_callback);
+      splitter_output_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data;
+      PORT_USERDATA *pData = (PORT_USERDATA *)splitter_output_port->userdata;
+      status = mmal_port_enable(splitter_output_port, camera_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
          ROS_INFO("Failed to setup encoder output");
