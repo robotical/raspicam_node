@@ -273,7 +273,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 			msg.encoding = "mono8";
 			msg.step = pData->pstate->width*1;
 		}else{
-			msg.encoding = "bgr8";
+			msg.encoding = "rgb8";
 			msg.step = pData->pstate->width*3;
 		}
 		msg.is_bigendian = 0;
