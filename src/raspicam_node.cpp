@@ -931,6 +931,25 @@ int start_capture(RASPIVID_STATE *state){
 	           	vcos_log_error("Unable to send a buffer to splitter output port (%d)", q);
 	 	}
       	}
+/*
+	MMAL_PORT_T *encoder_output_port = state->encoder_component->output[0];
+      	{
+	 	int num = mmal_queue_length(state->encoder_pool->queue);
+	 	int q;
+	 	for (q=0;q<num;q++)
+	 	{
+	      	MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state->encoder_pool->queue);
+
+	      	if (!buffer)
+	        	vcos_log_error("Unable to get a required buffer %d from pool queue", q);
+
+	       	if (mmal_port_send_buffer(encoder_output_port, buffer)!= MMAL_SUCCESS)
+	           	vcos_log_error("Unable to send a buffer to encoder output port (%d)", q);
+
+	 	}
+      	}
+*/
+
 	ROS_INFO("Video capture started\n");
 	return 0;
 
