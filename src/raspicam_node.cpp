@@ -119,6 +119,7 @@ typedef struct
    MMAL_CONNECTION_T *encoder_connection; /// Pointer to the connection from camera to encoder
 
    MMAL_POOL_T *video_pool; /// Pointer to the pool of buffers used by encoder output port
+   MMAL_POOL_T *preview_pool; /// Pointer to the pool of buffers used by encoder output port
    MMAL_POOL_T *encoder_pool; /// Pointer to the pool of buffers used by encoder output port
    ros::Publisher *image_pub;
 } RASPIVID_STATE;
@@ -217,7 +218,9 @@ static void get_status(RASPIVID_STATE *state)
 
 
 
-
+static void preview_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer){
+	ROS_INFO("Preview runs\n");	
+}	
 
 
 /**
@@ -305,6 +308,7 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
 {
    MMAL_COMPONENT_T *camera = 0;
    MMAL_ES_FORMAT_T *format;
+   MMAL_POOL_T *pool;
    MMAL_PORT_T *preview_port = NULL, *video_port = NULL, *still_port = NULL;
    MMAL_STATUS_T status;
 
@@ -436,11 +440,15 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
    /* Enable component */
    status = mmal_component_enable(camera);
 
-   if (status)
-   {
-      vcos_log_error("camera component couldn't be enabled");
-      goto error;
-   }
+
+    pool = mmal_port_pool_create(preview_port, preview_port->buffer_num, preview_port->buffer_size);
+ 
+    if (!pool)
+    {
+       vcos_log_error("Failed to create buffer header pool for camera port %s", video_port->name);
+    }
+ 
+    state->preview_pool = pool;
 
    raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
@@ -683,12 +691,13 @@ int init_cam(RASPIVID_STATE *state)
    else
    {
       PORT_USERDATA * callback_data_enc = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
+      PORT_USERDATA * callback_data_preview = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
       camera_preview_port   = state->camera_component->output[MMAL_CAMERA_PREVIEW_PORT];
       camera_still_port   = state->camera_component->output[MMAL_CAMERA_CAPTURE_PORT];
       encoder_input_port  = state->encoder_component->input[0];
       encoder_output_port = state->encoder_component->output[0];
-      status = connect_ports(camera_preview_port, encoder_input_port, &state->encoder_connection);
+      status = connect_ports(camera_video_port, encoder_input_port, &state->encoder_connection);
       if (status != MMAL_SUCCESS)
       {
             ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
@@ -710,6 +719,24 @@ int init_cam(RASPIVID_STATE *state)
          ROS_INFO("Failed to setup encoder output");
          return 1;
       }
+
+      callback_data_preview->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 8 );
+      callback_data_preview->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 8 );
+      // Set up our userdata - this is passed though to the callback where we need the information.
+      callback_data_preview->pstate = state;
+      callback_data_preview->abort = 0;
+      callback_data_preview->id = 0;
+      callback_data_preview->frame = 0;
+      camera_preview_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_preview;
+      PORT_USERDATA *pData = (PORT_USERDATA *)camera_preview_port->userdata;
+      // Enable the preview output port and tell it its callback function
+      status = mmal_port_enable(camera_preview_port, preview_buffer_callback);
+      if (status != MMAL_SUCCESS)
+      {
+         ROS_INFO("Failed to setup preview output");
+         return 1;
+      }
+
       state->isInit = 1;
    }
    return 0;
@@ -724,10 +751,6 @@ int start_capture(RASPIVID_STATE *state){
 	ROS_INFO("Starting video capture (%d, %d, %d, %d)\n", state->width, state->height, state->quality, state->framerate);
 
       	if (mmal_port_parameter_set_boolean(camera_video_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
-      	{
-	 	return 1;
-      	}
-	if (mmal_port_parameter_set_boolean(camera_preview_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
       	{
 	 	return 1;
       	}
@@ -747,6 +770,28 @@ int start_capture(RASPIVID_STATE *state){
 
 	 	}
       	}
+
+	if (mmal_port_parameter_set_boolean(camera_preview_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
+      	{
+	 	return 1;
+      	}
+	// Send all the buffers to the encoder port
+      	{
+	 	int num = mmal_queue_length(state->preview_pool->queue);
+	 	int q;
+	 	for (q=0;q<num;q++)
+	 	{
+	      	MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state->preview_pool->queue);
+
+	      	if (!buffer)
+	        	vcos_log_error("Unable to get a required buffer %d from pool queue", q);
+
+	       	if (mmal_port_send_buffer(camera_preview_port, buffer)!= MMAL_SUCCESS)
+	           	vcos_log_error("Unable to send a buffer to preview output port (%d)", q);
+
+	 	}
+      	}
+
 	ROS_INFO("Video capture started\n");
 	return 0;
 
