@@ -728,7 +728,7 @@ int init_cam(RASPIVID_STATE *state)
       callback_data_preview->id = 0;
       callback_data_preview->frame = 0;
       camera_preview_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_preview;
-      PORT_USERDATA *pData = (PORT_USERDATA *)camera_preview_port->userdata;
+      pData = (PORT_USERDATA *)camera_preview_port->userdata;
       // Enable the preview output port and tell it its callback function
       status = mmal_port_enable(camera_preview_port, preview_buffer_callback);
       if (status != MMAL_SUCCESS)
