@@ -603,11 +603,11 @@ int init_cam(RASPIVID_STATE *state)
       ROS_INFO("%s: Failed to create camera component", __func__);
       return 1;
    }
-   if (!create_splitter_component(state))
+   if (create_splitter_component(state) != MMAL_SUCCESS)
    {
       ROS_INFO("%s: Failed to create splitter component", __func__);
-      destroy_splitter_component(state);
-       return 1;
+      destroy_camera_component(state);
+      return 1;
    }
    /*if (!create_encoder_component(state))
    {
