@@ -68,6 +68,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "interface/mmal/util/mmal_connection.h"
 
 #include "ros/ros.h"
+#include "sensor_msgs/Image.h"
 #include "sensor_msgs/CompressedImage.h"
 #include "std_srvs/Empty.h"
 #include "sensor_msgs/CameraInfo.h"
@@ -125,6 +126,7 @@ typedef struct
 
 RASPIVID_STATE state_srv;
 ros::Publisher image_pub;
+ros::Publisher compressed_pub;
 ros::Publisher camera_info_pub;
 sensor_msgs::CameraInfo c_info;
 std::string tf_prefix;
@@ -217,6 +219,86 @@ static void get_status(RASPIVID_STATE *state)
 
 
 
+/**
+ *  buffer header callback function for encoder
+ *
+ *  Callback will dump buffer data to the specific file
+ *
+ * @param port Pointer to port from which callback originated
+ * @param buffer mmal buffer header pointer
+ */
+static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
+{
+   MMAL_BUFFER_HEADER_T *new_buffer;
+   int complete = 0;
+
+   // We pass our file handle and other stuff in via the userdata field.
+
+   PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
+   if (pData && pData->pstate->isInit)
+   {
+      int bytes_written = buffer->length;
+      if (buffer->length)
+      {
+         mmal_buffer_header_mem_lock(buffer);
+         memcpy(&(pData->buffer[pData->frame & 1][pData->id]), buffer->data, buffer->length);
+		 pData->id += bytes_written;
+         mmal_buffer_header_mem_unlock(buffer);
+      }
+
+      if (bytes_written != buffer->length)
+      {
+         vcos_log_error("Failed to write buffer data (%d from %d)- aborting", bytes_written, buffer->length);
+         pData->abort = 1;
+      }
+      if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
+         complete = 1;
+
+	if (complete){
+		sensor_msgs::Image msg;
+		msg.header.seq = pData->frame;
+		msg.header.frame_id = tf_prefix;
+		msg.header.frame_id.append("/camera");
+		msg.header.stamp = ros::Time::now();
+		msg.height = pData->pstate->height;
+		msg.width = pData->pstate->width;
+		msg.encoding = "bgra8";
+		msg.is_bigendian = 0;
+		msg.step = pData->pstate->width*4;
+		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
+		image_pub.publish(msg);
+		c_info.header.seq = pData->frame;
+		c_info.header.stamp = msg.header.stamp;
+		c_info.header.frame_id = msg.header.frame_id;
+		camera_info_pub.publish(c_info);
+		pData->frame++;
+		pData->id = 0;		
+	}
+   }
+   else
+   {
+      vcos_log_error("Received a encoder buffer callback with no state");
+   }
+   // release buffer back to the pool
+   mmal_buffer_header_release(buffer);
+
+   // and send one back to the port (if still open)
+   if (port->is_enabled)
+   {
+      MMAL_STATUS_T status;
+
+      new_buffer = mmal_queue_get(pData->pstate->camera_pool->queue);
+
+      if (new_buffer)
+         status = mmal_port_send_buffer(port, new_buffer);
+
+      if (!new_buffer || status != MMAL_SUCCESS)
+         vcos_log_error("Unable to return a buffer to the encoder port");
+   }else{
+
+	ROS_INFO("oups");
+  }
+}
 
 
 
@@ -263,7 +345,7 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 		msg.header.stamp = ros::Time::now();
 		msg.format = "jpg";
 		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
-		image_pub.publish(msg);
+		compressed_pub.publish(msg);
 		c_info.header.seq = pData->frame;
 		c_info.header.stamp = msg.header.stamp;
 		c_info.header.frame_id = msg.header.frame_id;
@@ -866,7 +948,8 @@ int main(int argc, char **argv){
    	c_info = c_info_man.getCameraInfo ();
 	ROS_INFO("Camera successfully calibrated");
    }
-   image_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image/compressed", 1);
+   compressed_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image/compressed", 1);
+   image_pub = n.advertise<sensor_msgs::Image>("camera/image", 1);
    camera_info_pub = n.advertise<sensor_msgs::CameraInfo>("camera/camera_info", 1);
    ros::ServiceServer start_cam = n.advertiseService("camera/start_capture", serv_start_cap);
    ros::ServiceServer stop_cam = n.advertiseService("camera/stop_capture", serv_stop_cap);
