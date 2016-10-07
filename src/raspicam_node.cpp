@@ -641,6 +641,7 @@ int init_cam(RASPIVID_STATE *state)
             ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
 	    return 1;
       }
+      ROS_INFO("Ports connected");
       callback_data->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 8 );
       callback_data->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 8 );
       callback_data->pstate = state;
@@ -655,6 +656,7 @@ int init_cam(RASPIVID_STATE *state)
          ROS_INFO("Failed to setup splitter output");
          return 1;
       }
+      ROS_INFO("Callback memeory allocated");
       state->isInit = 1;
 
    return 0;
