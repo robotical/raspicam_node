@@ -524,13 +524,13 @@ static int create_splitter_component(RASPIVID_STATE *state, MMAL_PORT_T *source_
     }
 
     state->splitter_component = splitter_component;
-    return MMALCAM_OK;
+    return MMAL_SUCCESS;
 
     error:
     if (splitter_component) {
         mmal_component_destroy(splitter_component);
     }
-    return MMALCAM_ERROR;
+    return MMAL_ERROR;
 }
 
 static void destroy_splitter_component(RASPIVID_STATE *state)
