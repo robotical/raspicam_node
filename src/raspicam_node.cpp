@@ -512,14 +512,6 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
    if (still_port->buffer_num < VIDEO_OUTPUT_BUFFERS_NUM)
       still_port->buffer_num = VIDEO_OUTPUT_BUFFERS_NUM;
 
-   /* Enable component */
-   status = mmal_component_enable(camera);
-
-   if (status)
-   {
-      vcos_log_error("camera component couldn't be enabled");
-      goto error;
-   }
 
    raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
@@ -531,6 +523,16 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
     }
     state->camera_pool = pool;
     state->camera_component = camera;
+
+
+   /* Enable component */
+   status = mmal_component_enable(camera);
+
+   if (status)
+   {
+      vcos_log_error("camera component couldn't be enabled");
+      goto error;
+   }
 
    ROS_INFO("Camera component done\n");
 
@@ -854,7 +856,7 @@ int start_capture(RASPIVID_STATE *state){
                         vcos_log_error("Unable to get a required buffer %d from pool queue", q);
 
                         if (mmal_port_send_buffer(camera_video_port, buffer)!= MMAL_SUCCESS)
-                        vcos_log_error("Unable to send a buffer to encoder output port (%d)", q);
+                        vcos_log_error("Unable to send a buffer to the camera output port (%d)", q);
 
                 }
         }
