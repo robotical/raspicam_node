@@ -458,9 +458,9 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
        vcos_log_error("Failed to create buffer header pool for camera port %s", video_port->name);
     }
  
-    state->camera_pool = pool;
+    state->camera_pool = pool;	*/
     state->camera_component = camera;
-	*/
+
    ROS_INFO("Camera component done\n");
 
    return camera;
