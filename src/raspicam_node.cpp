@@ -69,6 +69,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ros/ros.h"
 #include "sensor_msgs/Image.h"
+#include "sensor_msgs/CompressedImage.h"
 #include "std_srvs/Empty.h"
 #include "sensor_msgs/CameraInfo.h"
 #include "sensor_msgs/SetCameraInfo.h"
@@ -120,7 +121,6 @@ typedef struct
    MMAL_CONNECTION_T *preview_connection; /// Pointer to the connection from camera to preview
    MMAL_CONNECTION_T *encoder_connection; /// Pointer to the connection from camera to encoder
    MMAL_CONNECTION_T *splitter_connection ;
-   //MMAL_POOL_T *video_pool; /// Pointer to the pool of buffers used by encoder output port
    //MMAL_POOL_T *camera_pool; /// Pointer to the pool of buffers used by encoder output port
    MMAL_POOL_T *encoder_pool;
    MMAL_POOL_T *splitter_pool;
@@ -723,9 +723,9 @@ static void destroy_splitter_component(RASPIVID_STATE *state)
 static void destroy_encoder_component(RASPIVID_STATE *state)
 {
    // Get rid of any port buffers first
-   if (state->video_pool)
+   if (state->encoder_pool)
    {
-      mmal_port_pool_destroy(state->encoder_component->output[0], state->video_pool);
+      mmal_port_pool_destroy(state->encoder_component->output[0], state->encoder_pool);
    }
 
    if (state->encoder_component)
