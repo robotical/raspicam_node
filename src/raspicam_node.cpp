@@ -771,7 +771,7 @@ int init_cam(RASPIVID_STATE *state)
       camera_preview_port   = state->camera_component->output[MMAL_CAMERA_PREVIEW_PORT];
       encoder_input_port  = state->encoder_component->input[0];
       encoder_output_port = state->encoder_component->output[0];
-      status = connect_ports(camera_preview_port, encoder_input_port, &state->encoder_connection);
+      status = connect_ports(camera_video_port, encoder_input_port, &state->encoder_connection);
       if (status != MMAL_SUCCESS)
       {
             ROS_INFO("%s: Failed to connect camera preview port to encoder input", __func__);
@@ -800,12 +800,12 @@ int init_cam(RASPIVID_STATE *state)
 	callback_data_video->abort = 0;
 	callback_data_video->id = 0;
 	callback_data_video->frame = 0;
-	camera_video_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_video;
+	camera_preview_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_video;
 	pData = (PORT_USERDATA *)camera_video_port->userdata;
-	status = mmal_port_enable(camera_video_port, camera_buffer_callback);
+	status = mmal_port_enable(camera_preview_port, camera_buffer_callback);
 	if (status != MMAL_SUCCESS)
 	{
-		ROS_INFO("Failed to setup encoder output");
+		ROS_INFO("Failed to setup preview output");
 		return 1;
 	}
 
