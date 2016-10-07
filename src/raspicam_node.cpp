@@ -737,7 +737,7 @@ int init_cam(RASPIVID_STATE *state)
    MMAL_STATUS_T status;
    MMAL_PORT_T *camera_video_port = NULL;
    MMAL_PORT_T *camera_still_port = NULL;
-   MMAL_PORT_T *preview_input_port = NULL;
+   MMAL_PORT_T *preview_port = NULL;
    MMAL_PORT_T *encoder_input_port = NULL;
    MMAL_PORT_T *encoder_output_port = NULL;
 
@@ -799,7 +799,7 @@ int init_cam(RASPIVID_STATE *state)
 	callback_data_video->id = 0;
 	callback_data_video->frame = 0;
 	camera_video_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_video;
-	PORT_USERDATA *pData = (PORT_USERDATA *)camera_video_port->userdata;
+	pData = (PORT_USERDATA *)camera_video_port->userdata;
 	status = mmal_port_enable(camera_video_port, camera_buffer_callback);
 	if (status != MMAL_SUCCESS)
 	{
@@ -845,7 +845,7 @@ int start_capture(RASPIVID_STATE *state){
 	 	return 1;
       	}
 	{
-		int num = mmal_queue_length(state->camera_pool->queue);
+		int num = mmal_queue_length(state->video_pool->queue);
 		int q;
 		for (q=0;q<num;q++)
 		{
