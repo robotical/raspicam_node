@@ -657,7 +657,7 @@ int init_cam(RASPIVID_STATE *state)
    MMAL_STATUS_T status;
    MMAL_PORT_T *camera_video_port = NULL;
    MMAL_PORT_T *camera_still_port = NULL;
-   MMAL_PORT_T *preview_input_port = NULL;
+   MMAL_PORT_T *camera_preview_port = NULL;
    MMAL_PORT_T *encoder_input_port = NULL;
    MMAL_PORT_T *encoder_output_port = NULL;
 
@@ -684,10 +684,11 @@ int init_cam(RASPIVID_STATE *state)
    {
       PORT_USERDATA * callback_data_enc = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
+      camera_preview_port   = state->camera_component->output[MMAL_CAMERA_PREVIEW_PORT];
       camera_still_port   = state->camera_component->output[MMAL_CAMERA_CAPTURE_PORT];
       encoder_input_port  = state->encoder_component->input[0];
       encoder_output_port = state->encoder_component->output[0];
-      status = connect_ports(camera_video_port, encoder_input_port, &state->encoder_connection);
+      status = connect_ports(camera_preview_port, encoder_input_port, &state->encoder_connection);
       if (status != MMAL_SUCCESS)
       {
             ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
@@ -718,6 +719,7 @@ int init_cam(RASPIVID_STATE *state)
 int start_capture(RASPIVID_STATE *state){
 	if(!(state->isInit)) init_cam(state);
 	MMAL_PORT_T *camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
+	MMAL_PORT_T *camera_preview_port   = state->camera_component->output[MMAL_CAMERA_PREVIEW_PORT];
 	MMAL_PORT_T *encoder_output_port = state->encoder_component->output[0];
 	ROS_INFO("Starting video capture (%d, %d, %d, %d)\n", state->width, state->height, state->quality, state->framerate);
 
@@ -725,7 +727,11 @@ int start_capture(RASPIVID_STATE *state){
       	{
 	 	return 1;
       	}
-      	// Send all the buffers to the video port
+	if (mmal_port_parameter_set_boolean(camera_preview_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
+      	{
+	 	return 1;
+      	}
+      	// Send all the buffers to the encoder port
       	{
 	 	int num = mmal_queue_length(state->encoder_pool->queue);
 	 	int q;
