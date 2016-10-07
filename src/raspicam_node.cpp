@@ -240,7 +240,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 {
    MMAL_BUFFER_HEADER_T *new_buffer;
    int complete = 0;
-
+   ROS_INFO("Callback !");
    // We pass our file handle and other stuff in via the userdata field.
 
    PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
