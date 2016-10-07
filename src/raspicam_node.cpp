@@ -490,10 +490,10 @@ static void destroy_camera_component(RASPIVID_STATE *state)
 {
 
    MMAL_COMPONENT_T *splitter = 0;
-
+    MMAL_STATUS_T status ;
    /* Create the component */
    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_SPLITTER, &splitter);
-   MMAL_STATUS_T status = MMAL_EINVAL;
+   status = MMAL_EINVAL;
 
    if(!splitter->input_num || !splitter->output_num)
    {
