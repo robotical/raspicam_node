@@ -840,13 +840,13 @@ int init_cam(RASPIVID_STATE *state)
       return 1;
    }
    ROS_INFO("All components created");
-   if (create_encoder_component(state) != MMAL_SUCCESS)
+   /*if (create_encoder_component(state) != MMAL_SUCCESS)
    {
       ROS_INFO("%s: Failed to create encode component", __func__);
       destroy_camera_component(state);
       destroy_splitter_component(state);
       return 1;
-   }
+   }*/
 
       //setting up the splitter
       PORT_USERDATA * callback_data = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
@@ -858,7 +858,7 @@ int init_cam(RASPIVID_STATE *state)
       encoder_input_port   = state->encoder_component->input[0];
       ROS_INFO("Trying to connect ports");
       status = connect_ports(camera_video_port, splitter_input_port, &state->splitter_connection);
-      status = connect_ports(splitter_encoder_port, encoder_input_port, &state->encoder_connection);
+      /*status = connect_ports(splitter_encoder_port, encoder_input_port, &state->encoder_connection);*/
       if (status != MMAL_SUCCESS)
       {
             ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
@@ -884,14 +884,8 @@ int init_cam(RASPIVID_STATE *state)
          return 1;
       }
 
-      PORT_USERDATA * callback_data_enc = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
-      encoder_input_port  = state->encoder_component->input[0];
+     /* PORT_USERDATA * callback_data_enc = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       encoder_output_port = state->encoder_component->output[0];
-      if (status != MMAL_SUCCESS)
-      {
-            ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
-	    return 1;
-      }
       callback_data_enc->buffer[0] = (unsigned char *) malloc ( 1024 * 1024 );
       callback_data_enc->buffer[1] = (unsigned char *) malloc ( 1024 * 1024 );
       // Set up our userdata - this is passed though to the callback where we need the information.
@@ -906,7 +900,7 @@ int init_cam(RASPIVID_STATE *state)
       {
          ROS_INFO("Failed to setup encoder output");
          return 1;
-      }
+      }*/
 
       ROS_INFO("Callback memory allocated");
       state->isInit = 1;
