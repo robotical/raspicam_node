@@ -240,7 +240,6 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 {
    MMAL_BUFFER_HEADER_T *new_buffer;
    int complete = 0;
-   ROS_INFO("Callback !");
    // We pass our file handle and other stuff in via the userdata field.
 
    PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
@@ -488,43 +487,50 @@ static void destroy_camera_component(RASPIVID_STATE *state)
    }
 }
 
- static MMAL_STATUS_T create_splitter_component(RASPIVID_STATE *state)
+static int create_splitter_component(RASPIVID_STATE *state, MMAL_PORT_T *source_port)
 {
-    MMAL_POOL_T *pool;
-    MMAL_PORT_T *splitter_output = NULL ;
-    MMAL_COMPONENT_T *splitter = 0;
-    MMAL_STATUS_T status ;
-   /* Create the component */
-   status = mmal_component_create(MMAL_COMPONENT_DEFAULT_SPLITTER, &splitter);
-   status = MMAL_EINVAL;
+    MMAL_STATUS_T status;
+    MMAL_COMPONENT_T *splitter_component;
+    MMAL_PORT_T *input_port;
 
-   if(!splitter->input_num || !splitter->output_num)
-   {
-      LOG_ERROR("%s doesn't have input ports", splitter->name);
-      status = MMAL_EINVAL;
-      goto error;
-   }
-   if(splitter->output_num < 2)
-   {
-      LOG_ERROR("%s doesn't have enough output ports (%u/%u)", splitter->name,
-                (unsigned int)splitter->output_num, 2);
-      status = MMAL_EINVAL;
-      goto error;
-   }
-   status = MMAL_SUCCESS;
-   state->splitter_component = splitter ;
-   splitter_output = splitter->output[0];
-   pool = mmal_port_pool_create(splitter_output, splitter_output->buffer_num, splitter_output->buffer_size);
-    if (!pool)
-    {
-       status = MMAL_EINVAL;
-       vcos_log_error("Failed to create buffer header pool for splitter port %s", splitter_output->name);
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_SPLITTER, &splitter_component);
+
+    if (status != MMAL_SUCCESS) {
+        ROS_INFO("Failed to create splitter component");
+        goto error;
     }
- 
-    state->splitter_pool = pool;
- error:
-   return status;
 
+    input_port = splitter_component->input[0];
+    mmal_format_copy(input_port->format, source_port->format);
+    input_port->buffer_num = 3;
+    status = mmal_port_format_commit(input_port);
+    if (status != MMAL_SUCCESS)
+    {
+        ROS_INFO("Couldn't set splitter input port format ");
+        goto error;
+    }
+
+    for(int i = 0; i < splitter_component->output_num; i++)
+    {
+        MMAL_PORT_T *output_port = splitter_component->output[i];
+        output_port->buffer_num = 3;
+        mmal_format_copy(output_port->format,input_port->format);
+        status = mmal_port_format_commit(output_port);
+        if (status != MMAL_SUCCESS)
+        {
+             ROS_INFO("Couldn't set splitter output port format : error %d");
+             goto error;
+        }
+    }
+
+    state->splitter_component = splitter_component;
+    return MMALCAM_OK;
+
+    error:
+    if (splitter_component) {
+        mmal_component_destroy(splitter_component);
+    }
+    return MMALCAM_ERROR;
 }
 
 static void destroy_splitter_component(RASPIVID_STATE *state)
@@ -590,6 +596,19 @@ static void signal_handler(int signal_number)
    exit(255);
 }
 
+
+
+int splitter_output_init(RASPIVID_STATE *state, struct MMAL_PORT_T* port)
+{
+
+    state->splitter_pool = mmal_pool_create(port->buffer_num, port->buffer_size);
+    if (state->splitter_pool == NULL) {
+        ROS_INFO("MMAL Output : buffer pool creation failed");
+        return -1;
+    }
+    return 0;
+}
+
 /**
  * init_cam
 
@@ -618,7 +637,7 @@ int init_cam(RASPIVID_STATE *state)
       return 1;
    }
    ROS_INFO("Creating splitter component");
-   if (create_splitter_component(state) != MMAL_SUCCESS)
+   if (create_splitter_component(state, state->camera_component->output[MMAL_CAMERA_VIDEO_PORT]) != MMAL_SUCCESS)
    {
       ROS_INFO("%s: Failed to create splitter component", __func__);
       destroy_camera_component(state);
@@ -646,6 +665,7 @@ int init_cam(RASPIVID_STATE *state)
             ROS_INFO("%s: Failed to connect camera video port to encoder input", __func__);
 	    return 1;
       }
+      splitter_output_init(state, splitter_output_port);
       ROS_INFO("Ports connected");
       callback_data->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 8 );
       callback_data->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 8 );
