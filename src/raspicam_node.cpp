@@ -949,7 +949,7 @@ int main(int argc, char **argv){
 	ROS_INFO("Camera successfully calibrated");
    }
    compressed_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image/compressed", 1);
-   image_pub = n.advertise<sensor_msgs::Image>("camera/image", 1);
+   image_pub = n.advertise<sensor_msgs::Image>("camera/image/raw", 1);
    camera_info_pub = n.advertise<sensor_msgs::CameraInfo>("camera/camera_info", 1);
    ros::ServiceServer start_cam = n.advertiseService("camera/start_capture", serv_start_cap);
    ros::ServiceServer stop_cam = n.advertiseService("camera/stop_capture", serv_stop_cap);
