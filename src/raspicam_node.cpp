@@ -515,7 +515,7 @@ static void destroy_camera_component(RASPIVID_STATE *state)
    pool = mmal_port_pool_create(splitter_output, splitter_output->buffer_num, splitter_output->buffer_size);
     if (!pool)
     {
-       vcos_log_error("Failed to create buffer header pool for camera port %s", video_port->name);
+       vcos_log_error("Failed to create buffer header pool for splitter port %s", splitter_output->name);
     }
  
     state->splitter_pool = pool;
