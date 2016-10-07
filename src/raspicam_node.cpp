@@ -635,6 +635,7 @@ int init_cam(RASPIVID_STATE *state)
       camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
       splitter_input_port   = state->splitter_component->input[0];
       splitter_output_port   = state->splitter_component->output[0];
+      ROS_INFO("Trying to connected ports");
       status = connect_ports(camera_video_port, splitter_input_port, &state->splitter_connection);
       if (status != MMAL_SUCCESS)
       {
