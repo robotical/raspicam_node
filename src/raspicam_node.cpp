@@ -514,14 +514,14 @@ static void destroy_camera_component(RASPIVID_STATE *state)
    status = MMAL_SUCCESS;
    state->splitter_component = splitter ;
    splitter_output = splitter->output[0];
-   /*pool = mmal_port_pool_create(splitter_output, splitter_output->buffer_num, splitter_output->buffer_size);
+   pool = mmal_port_pool_create(splitter_output, splitter_output->buffer_num, splitter_output->buffer_size);
     if (!pool)
     {
        status = MMAL_EINVAL;
        vcos_log_error("Failed to create buffer header pool for splitter port %s", splitter_output->name);
     }
  
-    state->splitter_pool = pool;*/
+    state->splitter_pool = pool;
  error:
    return status;
 
@@ -636,6 +636,7 @@ int init_cam(RASPIVID_STATE *state)
       //setting up the splitter
       PORT_USERDATA * callback_data = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
+      ROS_INFO("Accessing splitter");
       splitter_input_port   = state->splitter_component->input[0];
       splitter_output_port   = state->splitter_component->output[0];
       ROS_INFO("Trying to connect ports");
