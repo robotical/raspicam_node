@@ -815,6 +815,8 @@ int init_cam(RASPIVID_STATE *state)
    MMAL_PORT_T *splitter_input_port = NULL;
    MMAL_PORT_T *splitter_output_port = NULL;
    MMAL_PORT_T *splitter_encoder_port = NULL ;
+   MMAL_PORT_T *encoder_input_port = NULL ;
+   MMAL_PORT_T *encoder_output_port = NULL ;
    bcm_host_init();
    get_status(state);
    // Register our application with the logging system
@@ -898,7 +900,7 @@ int init_cam(RASPIVID_STATE *state)
       callback_data_enc->id = 0;
       callback_data_enc->frame = 0;
       encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_enc;
-      PORT_USERDATA *pData = (PORT_USERDATA *)encoder_output_port->userdata;
+      pData = (PORT_USERDATA *)encoder_output_port->userdata;
       status = mmal_port_enable(encoder_output_port, encoder_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
