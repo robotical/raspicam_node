@@ -840,7 +840,7 @@ int init_cam(RASPIVID_STATE *state)
       return 1;
    }
    ROS_INFO("All components created");
-   if (!create_encoder_component(state))
+   if (create_encoder_component(state) != MMAL_SUCCESS)
    {
       ROS_INFO("%s: Failed to create encode component", __func__);
       destroy_camera_component(state);
