@@ -270,7 +270,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 		msg.height = pData->pstate->height;
 		msg.width = pData->pstate->width;
 		if(pData->pstate->monochrome){
-			msg.encoding = "gray8";
+			msg.encoding = "mono8";
 			msg.step = pData->pstate->width*1;
 		}else{
 			msg.encoding = "bgr8";
