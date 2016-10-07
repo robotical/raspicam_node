@@ -272,7 +272,8 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 		c_info.header.frame_id = msg.header.frame_id;
 		camera_info_pub.publish(c_info);
 		pData->frame++;
-		pData->id = 0;		
+		pData->id = 0;	
+		  ROS_INFO("New frame\n");	
 	}
    }
    else
@@ -352,6 +353,7 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 		camera_info_pub.publish(c_info);
 		pData->frame++;
 		pData->id = 0;		
+		ROS_INFO("New encoded\n");
 	}
    }
 
