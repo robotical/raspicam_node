@@ -519,7 +519,7 @@ static void destroy_camera_component(RASPIVID_STATE *state)
        vcos_log_error("Failed to create buffer header pool for camera port %s", video_port->name);
     }
  
-    state->slpitter_pool = pool;
+    state->splitter_pool = pool;
  error:
    return status;
 
