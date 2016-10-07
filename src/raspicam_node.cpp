@@ -490,9 +490,8 @@ static void destroy_camera_component(RASPIVID_STATE *state)
 
  static MMAL_STATUS_T create_splitter_component(RASPIVID_STATE *state)
 {
-
     MMAL_POOL_T *pool;
-    MMAL_PORT_T *splitter_output = NULL,
+    MMAL_PORT_T *splitter_output = NULL ;
     MMAL_COMPONENT_T *splitter = 0;
     MMAL_STATUS_T status ;
    /* Create the component */
