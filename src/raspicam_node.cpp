@@ -121,7 +121,8 @@ typedef struct
    MMAL_CONNECTION_T *encoder_connection; /// Pointer to the connection from camera to encoder
    MMAL_CONNECTION_T *splitter_connection ;
    //MMAL_POOL_T *video_pool; /// Pointer to the pool of buffers used by encoder output port
-   MMAL_POOL_T *camera_pool; /// Pointer to the pool of buffers used by encoder output port
+   //MMAL_POOL_T *camera_pool; /// Pointer to the pool of buffers used by encoder output port
+   MMAL_POOL_T *splitter_pool;
    ros::Publisher *image_pub;
 } RASPIVID_STATE;
 
@@ -300,7 +301,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
    {
       MMAL_STATUS_T status;
 
-      new_buffer = mmal_queue_get(pData->pstate->camera_pool->queue);
+      new_buffer = mmal_queue_get(pData->pstate->splitter_pool->queue);
 
       if (new_buffer)
          status = mmal_port_send_buffer(port, new_buffer);
@@ -449,6 +450,7 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
    raspicamcontrol_set_all_parameters(camera, &state->camera_parameters);
 
     /* Create pool of buffer headers for the output port to consume */
+   /*
     pool = mmal_port_pool_create(video_port, video_port->buffer_num, video_port->buffer_size);
  
     if (!pool)
@@ -458,7 +460,7 @@ static MMAL_COMPONENT_T *create_camera_component(RASPIVID_STATE *state)
  
     state->camera_pool = pool;
     state->camera_component = camera;
-
+	*/
    ROS_INFO("Camera component done\n");
 
    return camera;
@@ -489,7 +491,9 @@ static void destroy_camera_component(RASPIVID_STATE *state)
  static MMAL_STATUS_T create_splitter_component(RASPIVID_STATE *state)
 {
 
-   MMAL_COMPONENT_T *splitter = 0;
+    MMAL_POOL_T *pool;
+    MMAL_PORT_T *splitter_output = NULL,
+    MMAL_COMPONENT_T *splitter = 0;
     MMAL_STATUS_T status ;
    /* Create the component */
    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_SPLITTER, &splitter);
@@ -508,6 +512,14 @@ static void destroy_camera_component(RASPIVID_STATE *state)
    }
    status = MMAL_SUCCESS;
    state->splitter_component = splitter ;
+   splitter_output = splitter->output[0];
+   pool = mmal_port_pool_create(splitter_output, splitter_output->buffer_num, splitter_output->buffer_size);
+    if (!pool)
+    {
+       vcos_log_error("Failed to create buffer header pool for camera port %s", video_port->name);
+    }
+ 
+    state->slpitter_pool = pool;
  error:
    return status;
 
@@ -621,7 +633,7 @@ int init_cam(RASPIVID_STATE *state)
       PORT_USERDATA * callback_data = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
       splitter_input_port   = state->splitter_component->input[0];
-      splitter_output_port   = state->splitter_component->output[1];
+      splitter_output_port   = state->splitter_component->output[0];
       status = connect_ports(camera_video_port, splitter_input_port, &state->splitter_connection);
       if (status != MMAL_SUCCESS)
       {
@@ -639,7 +651,7 @@ int init_cam(RASPIVID_STATE *state)
       status = mmal_port_enable(splitter_output_port, camera_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
-         ROS_INFO("Failed to setup encoder output");
+         ROS_INFO("Failed to setup splitter output");
          return 1;
       }
       state->isInit = 1;
@@ -651,7 +663,7 @@ int init_cam(RASPIVID_STATE *state)
 int start_capture(RASPIVID_STATE *state){
 	if(!(state->isInit)) init_cam(state);
 	MMAL_PORT_T *camera_video_port   = state->camera_component->output[MMAL_CAMERA_VIDEO_PORT];
-	MMAL_PORT_T *splitter_video_port   = state->splitter_component->output[1]; //callback is on the second splitter
+	MMAL_PORT_T *splitter_video_port   = state->splitter_component->output[0]; //callback is on the first splitter
 	ROS_INFO("Starting video capture (%d, %d, %d, %d)\n", state->width, state->height, state->quality, state->framerate);
       	if (mmal_port_parameter_set_boolean(camera_video_port, MMAL_PARAMETER_CAPTURE, 1) != MMAL_SUCCESS)
       	{
@@ -659,18 +671,15 @@ int start_capture(RASPIVID_STATE *state){
       	}
       	// Send all the buffers to the video port
       	{
-	 	int num = mmal_queue_length(state->camera_pool->queue);
+	 	int num = mmal_queue_length(state->splitter_pool->queue);
 	 	int q;
 	 	for (q=0;q<num;q++)
 	 	{
-	      	MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state->camera_pool->queue);
-
+	      	MMAL_BUFFER_HEADER_T *buffer = mmal_queue_get(state->splitter_pool->queue);
 	      	if (!buffer)
 	        	vcos_log_error("Unable to get a required buffer %d from pool queue", q);
-
 			if (mmal_port_send_buffer(splitter_video_port, buffer)!= MMAL_SUCCESS)
 	           	vcos_log_error("Unable to send a buffer to splitter output port (%d)", q);
-
 	 	}
       	}
 	ROS_INFO("Video capture started\n");
@@ -707,9 +716,9 @@ int close_cam(RASPIVID_STATE *state){
 			 
 		//Destroy encoder component
 		// Get rid of any port buffers first
-		if (state->camera_pool)
+		if (state->splitter_pool)
 		{
-			mmal_port_pool_destroy(camera_video_port, state->camera_pool);
+			mmal_port_pool_destroy(camera_video_port, state->splitter_pool);
 		}
 
 
