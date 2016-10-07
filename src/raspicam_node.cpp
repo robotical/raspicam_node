@@ -501,12 +501,14 @@ static void destroy_camera_component(RASPIVID_STATE *state)
    if(!splitter->input_num || !splitter->output_num)
    {
       LOG_ERROR("%s doesn't have input ports", splitter->name);
+      status = MMAL_EINVAL;
       goto error;
    }
    if(splitter->output_num < 2)
    {
       LOG_ERROR("%s doesn't have enough output ports (%u/%u)", splitter->name,
                 (unsigned int)splitter->output_num, 2);
+      status = MMAL_EINVAL;
       goto error;
    }
    status = MMAL_SUCCESS;
@@ -515,6 +517,7 @@ static void destroy_camera_component(RASPIVID_STATE *state)
    pool = mmal_port_pool_create(splitter_output, splitter_output->buffer_num, splitter_output->buffer_size);
     if (!pool)
     {
+       status = MMAL_EINVAL;
        vcos_log_error("Failed to create buffer header pool for splitter port %s", splitter_output->name);
     }
  
