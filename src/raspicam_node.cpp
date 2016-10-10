@@ -342,7 +342,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 		msg.header.stamp = ros::Time::now();
 		msg.height = pData->pstate->height;
 		msg.width = pData->pstate->width;
-		if(pData->pstate->monochrome){
+		if(pData->pstate->monochrome>0){
 			msg.encoding = "mono8";
 			msg.step = pData->pstate->width*1;
 		}else{
@@ -350,14 +350,15 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 			msg.step = pData->pstate->width*3;
 		}
 		msg.is_bigendian = 0;
-		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
+		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][(msg.height*msg.step)]));
+		//msg.data.insert( msg.data.end(), (msg.height*msg.step), pData->buffer[pData->frame & 1]);
 		image_pub.publish(msg);
 		c_info.header.seq = pData->frame;
 		c_info.header.stamp = msg.header.stamp;
 		c_info.header.frame_id = msg.header.frame_id;
 		camera_info_pub.publish(c_info);
 		pData->frame++;
-		pData->id = 0;		
+		pData->id = 0;
 	}
    }
    else
@@ -1040,8 +1041,8 @@ int main(int argc, char **argv){
    	c_info = c_info_man.getCameraInfo ();
 	ROS_INFO("Camera successfully calibrated");
    }
-   image_pub = n.advertise<sensor_msgs::Image>("camera/image/raw", 1);
-   compressed_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image/compressed", 1);
+   image_pub = n.advertise<sensor_msgs::Image>("camera/image_raw", 1);
+   compressed_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image_compressed", 1);
    camera_info_pub = n.advertise<sensor_msgs::CameraInfo>("camera/camera_info", 1);
    ros::ServiceServer start_cam = n.advertiseService("camera/start_capture", serv_start_cap);
    ros::ServiceServer stop_cam = n.advertiseService("camera/stop_capture", serv_stop_cap);
