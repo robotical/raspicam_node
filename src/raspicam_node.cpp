@@ -189,10 +189,10 @@ static void get_status(RASPIVID_STATE *state)
    if (ros::param::get("~quality", temp )){
 	if(temp > 0 && temp <= 100)
 		state->quality = temp;
-	else	state->quality = 80;
+	else	state->quality = 70;
    }else{
-	state->quality = 80;
-	ros::param::set("~quality", 80);
+	state->quality = 70;
+	ros::param::set("~quality", 70);
    }
 
    if (ros::param::get("~framerate", temp )){
@@ -275,7 +275,7 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 		c_info.header.frame_id = msg.header.frame_id;
 		camera_info_pub.publish(c_info);
 		pData->frame++;
-		pData->id = 0;		
+		pData->id = 0;
 	}
    }
 
@@ -1040,8 +1040,8 @@ int main(int argc, char **argv){
    	c_info = c_info_man.getCameraInfo ();
 	ROS_INFO("Camera successfully calibrated");
    }
-   image_pub = n.advertise<sensor_msgs::Image>("camera/image/raw", 1);
-   compressed_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image/compressed", 1);
+   image_pub = n.advertise<sensor_msgs::Image>("camera/image_raw", 1);
+   compressed_pub = n.advertise<sensor_msgs::CompressedImage>("camera/image_compressed", 1);
    camera_info_pub = n.advertise<sensor_msgs::CameraInfo>("camera/camera_info", 1);
    ros::ServiceServer start_cam = n.advertiseService("camera/start_capture", serv_start_cap);
    ros::ServiceServer stop_cam = n.advertiseService("camera/stop_capture", serv_stop_cap);
