@@ -123,10 +123,8 @@ typedef struct
    MMAL_CONNECTION_T *preview_connection; /// Pointer to the connection from camera to preview
    MMAL_CONNECTION_T *encoder_connection; /// Pointer to the connection from camera to encoder
    MMAL_CONNECTION_T *splitter_connection ;
-   //MMAL_POOL_T *camera_pool; /// Pointer to the pool of buffers used by encoder output port
    MMAL_POOL_T *encoder_pool;
    MMAL_POOL_T *splitter_pool;
-   ros::Publisher *image_pub;
 } RASPIVID_STATE;
 
 RASPIVID_STATE state_srv;
@@ -205,6 +203,7 @@ static void get_status(RASPIVID_STATE *state)
 	state->framerate = 30;
 	ros::param::set("~framerate", 30);
    }
+
    if (ros::param::get("~monochrome", temp )){
 	state->monochrome = (temp > 0) ? 1 : 0;
    }else{
@@ -235,6 +234,7 @@ static void get_status(RASPIVID_STATE *state)
  *
  * @param port Pointer to port from which callback originated
  * @param buffer mmal buffer header pointer
+ * Encoder callback seems to be called twice per-image
  */
 static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
@@ -260,17 +260,16 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
          vcos_log_error("Failed to write buffer data (%d from %d)- aborting", bytes_written, buffer->length);
          pData->abort = 1;
       }
-      if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
-         complete = 1;
-
-	if (complete){
+      if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED)){
 		sensor_msgs::CompressedImage msg;
 		msg.header.seq = pData->frame;
 		msg.header.frame_id = tf_prefix;
 		msg.header.frame_id.append("/camera");
 		msg.header.stamp = ros::Time::now();
 		msg.format = "jpeg";
-		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
+		msg.data.resize(pData->id);
+		memcpy(&msg.data[0], pData->buffer[pData->frame & 1], pData->id);
+		//msg.data.insert(msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
 		compressed_pub.publish(msg);
 		c_info.header.seq = pData->frame;
 		c_info.header.stamp = msg.header.stamp;
@@ -309,54 +308,40 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
  *
  * @param port Pointer to port from which callback originated
  * @param buffer mmal buffer header pointer
+ * Camera callback is called once per frame 
  */
 static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buffer)
 {
    MMAL_BUFFER_HEADER_T *new_buffer;
    int complete = 0;
    // We pass our file handle and other stuff in via the userdata field.
-
    PORT_USERDATA *pData = (PORT_USERDATA *)port->userdata;
    if (pData && pData->pstate->isInit)
    {
       int bytes_written = buffer->length;
-      if (buffer->length)
-      {
-         mmal_buffer_header_mem_lock(buffer);
-         memcpy(&(pData->buffer[pData->frame & 1][pData->id]), buffer->data, buffer->length);
-	 pData->id += bytes_written;
-         mmal_buffer_header_mem_unlock(buffer);
-      }
-
-      if (bytes_written != buffer->length)
-      {
-         vcos_log_error("Failed to write buffer data (%d from %d)- aborting", bytes_written, buffer->length);
-         pData->abort = 1;
-      }
-      if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED))
-         complete = 1;
-
-	if (complete){
+      if (buffer->length){
 		sensor_msgs::Image msg;
 		msg.header.seq = pData->frame;
 		msg.header.frame_id = tf_prefix;
 		msg.header.frame_id.append("/camera");
 		msg.header.stamp = ros::Time::now();
+		mmal_buffer_header_mem_lock(buffer);
 		if(pData->pstate->monochrome>0){
 			sensor_msgs::fillImage( msg,
                             sensor_msgs::image_encodings::MONO8,
                             pData->pstate->height, // height
                             pData->pstate->width, // width
                             (pData->pstate->width), // stepSize
-                            pData->buffer[pData->frame & 1]);
+                            buffer->data);
 		}else{
 			sensor_msgs::fillImage( msg,
                             sensor_msgs::image_encodings::RGB8,
                             pData->pstate->height, // height
                             pData->pstate->width, // width
                             (pData->pstate->width*3), // stepSize
-                            pData->buffer[pData->frame & 1]);
+                            buffer->data);
 		}
+		mmal_buffer_header_mem_unlock(buffer);
 		msg.is_bigendian = 0;
 		image_pub.publish(msg);
 		c_info.header.seq = pData->frame;
@@ -657,7 +642,6 @@ static void destroy_splitter_component(RASPIVID_STATE *state)
     // We want same format on input and output
     mmal_format_copy(encoder_output->format, encoder_input->format);
  
-    // Only supporting H264 at the moment
     encoder_output->format->encoding = MMAL_ENCODING_JPEG;
  
  
@@ -900,7 +884,6 @@ int init_cam(RASPIVID_STATE *state)
       callback_data_enc->id = 0;
       callback_data_enc->frame = 0;
       encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_enc;
-      //pData = (PORT_USERDATA *)encoder_output_port->userdata;
       status = mmal_port_enable(encoder_output_port, encoder_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
@@ -968,22 +951,22 @@ int close_cam(RASPIVID_STATE *state){
 		state -> isInit = 0;
 		MMAL_COMPONENT_T *camera = state->camera_component;
 		MMAL_PORT_T *camera_video_port   = camera->output[MMAL_CAMERA_VIDEO_PORT];
-		//MMAL_COMPONENT_T *encoder = state->encoder_component;
-		//MMAL_PORT_T *encoder_output_port = state->encoder_component->output[0];
+		MMAL_COMPONENT_T *encoder = state->encoder_component;
+		MMAL_COMPONENT_T *splitter = state->splitter_component;
+		MMAL_PORT_T *encoder_output_port = state->encoder_component->output[0];
 		MMAL_PORT_T *camera_still_port = camera->output[MMAL_CAMERA_CAPTURE_PORT];
 		PORT_USERDATA * pData = (PORT_USERDATA *)camera_video_port->userdata;
-
+		PORT_USERDATA * pData_enc = (PORT_USERDATA *) encoder_output_port->userdata;
 		if (camera_still_port && camera_still_port->is_enabled)
 			mmal_port_disable(camera_still_port);
 		if (camera_video_port && camera_video_port->is_enabled)
 			mmal_port_disable(camera_video_port);
 
-		//mmal_connection_destroy(state->encoder_connection);
-
+		mmal_connection_destroy(state->encoder_connection);
+                mmal_connection_destroy(state->splitter_connection);
 		// Disable components
-		/*if (encoder)
+		if (encoder)
 			mmal_component_disable(encoder);
-		 */
 		if (camera)
 			mmal_component_disable(camera);
 		//Destroy encoder component
@@ -992,16 +975,23 @@ int close_cam(RASPIVID_STATE *state){
 		{
 			mmal_port_pool_destroy(camera_video_port, state->splitter_pool);
 		}
+		if (state->encoder_pool)
+                {
+                        mmal_port_pool_destroy(encoder_output_port, state->encoder_pool);
+                }
 
 
 		free(pData->buffer[0]);
 		free(pData->buffer[1]);
+	        free(pData_enc->buffer[0]);
+                free(pData_enc->buffer[1]);
 
-		/*if (encoder)
+
+		if (encoder)
 		{
 			mmal_component_destroy(encoder);
 			encoder = NULL;
-		}*/
+		}
 		//destroy camera component
 		if (camera)
 		{
