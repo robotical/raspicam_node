@@ -342,8 +342,6 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 		msg.header.frame_id = tf_prefix;
 		msg.header.frame_id.append("/camera");
 		msg.header.stamp = ros::Time::now();
-		//msg.height = pData->pstate->height;
-		//msg.width = pData->pstate->width;
 		if(pData->pstate->monochrome>0){
 			sensor_msgs::fillImage( msg,
                             sensor_msgs::image_encodings::MONO8,
@@ -351,11 +349,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
                             pData->pstate->width, // width
                             (pData->pstate->width), // stepSize
                             pData->buffer[pData->frame & 1]);
-			/*msg.encoding = "mono8";
-			msg.step = (pData->pstate->width*1);*/
 		}else{
-			/*msg.encoding = "rgb8";
-			msg.step = (pData->pstate->width*3);*/
 			sensor_msgs::fillImage( msg,
                             sensor_msgs::image_encodings::RGB8,
                             pData->pstate->height, // height
@@ -364,8 +358,6 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
                             pData->buffer[pData->frame & 1]);
 		}
 		msg.is_bigendian = 0;
-		//msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][(msg.height*msg.step)]));
-		//msg.data.insert( msg.data.end(), (msg.height*msg.step), pData->buffer[pData->frame & 1]);
 		image_pub.publish(msg);
 		c_info.header.seq = pData->frame;
 		c_info.header.stamp = msg.header.stamp;
@@ -883,14 +875,13 @@ int init_cam(RASPIVID_STATE *state)
       splitter_output_init(state, splitter_encoder_port);
       ROS_INFO("Ports connected");
       ROS_INFO("Initializing callbacks");
-      callback_data->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 8 );
-      callback_data->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 8 );
+      callback_data->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 4 );
+      callback_data->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 4 );
       callback_data->pstate = state;
       callback_data->abort = 0;
       callback_data->id = 0;
       callback_data->frame = 0;
       splitter_output_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data;
-      //PORT_USERDATA *pData = (PORT_USERDATA *)splitter_output_por
       status = mmal_port_enable(splitter_output_port, camera_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
