@@ -69,6 +69,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ros/ros.h"
 #include "sensor_msgs/Image.h"
+#include "sensor_msgs/image_encodings.h"
+#include "sensor_msgs/fill_image.h"
 #include "sensor_msgs/CompressedImage.h"
 #include "std_srvs/Empty.h"
 #include "sensor_msgs/CameraInfo.h"
@@ -267,7 +269,7 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
 		msg.header.frame_id = tf_prefix;
 		msg.header.frame_id.append("/camera");
 		msg.header.stamp = ros::Time::now();
-		msg.format = "jpg";
+		msg.format = "jpeg";
 		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
 		compressed_pub.publish(msg);
 		c_info.header.seq = pData->frame;
@@ -322,7 +324,7 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
       {
          mmal_buffer_header_mem_lock(buffer);
          memcpy(&(pData->buffer[pData->frame & 1][pData->id]), buffer->data, buffer->length);
-		 pData->id += bytes_written;
+	 pData->id += bytes_written;
          mmal_buffer_header_mem_unlock(buffer);
       }
 
@@ -340,17 +342,29 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
 		msg.header.frame_id = tf_prefix;
 		msg.header.frame_id.append("/camera");
 		msg.header.stamp = ros::Time::now();
-		msg.height = pData->pstate->height;
-		msg.width = pData->pstate->width;
+		//msg.height = pData->pstate->height;
+		//msg.width = pData->pstate->width;
 		if(pData->pstate->monochrome>0){
-			msg.encoding = "mono8";
-			msg.step = pData->pstate->width*1;
+			sensor_msgs::fillImage( msg,
+                            sensor_msgs::image_encodings::MONO8,
+                            pData->pstate->height, // height
+                            pData->pstate->width, // width
+                            (pData->pstate->width), // stepSize
+                            pData->buffer[pData->frame & 1]);
+			/*msg.encoding = "mono8";
+			msg.step = (pData->pstate->width*1);*/
 		}else{
-			msg.encoding = "rgb8";
-			msg.step = pData->pstate->width*3;
+			/*msg.encoding = "rgb8";
+			msg.step = (pData->pstate->width*3);*/
+			sensor_msgs::fillImage( msg,
+                            sensor_msgs::image_encodings::RGB8,
+                            pData->pstate->height, // height
+                            pData->pstate->width, // width
+                            (pData->pstate->width*3), // stepSize
+                            pData->buffer[pData->frame & 1]);
 		}
 		msg.is_bigendian = 0;
-		msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][(msg.height*msg.step)]));
+		//msg.data.insert( msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][(msg.height*msg.step)]));
 		//msg.data.insert( msg.data.end(), (msg.height*msg.step), pData->buffer[pData->frame & 1]);
 		image_pub.publish(msg);
 		c_info.header.seq = pData->frame;
@@ -876,8 +890,7 @@ int init_cam(RASPIVID_STATE *state)
       callback_data->id = 0;
       callback_data->frame = 0;
       splitter_output_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data;
-      PORT_USERDATA *pData = (PORT_USERDATA *)splitter_output_port->userdata;
-      
+      //PORT_USERDATA *pData = (PORT_USERDATA *)splitter_output_por
       status = mmal_port_enable(splitter_output_port, camera_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
@@ -888,15 +901,15 @@ int init_cam(RASPIVID_STATE *state)
       //here starts the encoder section
       PORT_USERDATA * callback_data_enc = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       encoder_output_port = state->encoder_component->output[0];
-      callback_data_enc->buffer[0] = (unsigned char *) malloc ( 1024 * 1024 );
-      callback_data_enc->buffer[1] = (unsigned char *) malloc ( 1024 * 1024 );
+      callback_data_enc->buffer[0] = (unsigned char *) malloc ( 1024 * 1024);
+      callback_data_enc->buffer[1] = (unsigned char *) malloc ( 1024 * 1024);
       // Set up our userdata - this is passed though to the callback where we need the information.
       callback_data_enc->pstate = state;
       callback_data_enc->abort = 0;
       callback_data_enc->id = 0;
       callback_data_enc->frame = 0;
       encoder_output_port->userdata = (struct MMAL_PORT_USERDATA_T *) callback_data_enc;
-      pData = (PORT_USERDATA *)encoder_output_port->userdata;
+      //pData = (PORT_USERDATA *)encoder_output_port->userdata;
       status = mmal_port_enable(encoder_output_port, encoder_buffer_callback);
       if (status != MMAL_SUCCESS)
       {
@@ -971,7 +984,6 @@ int close_cam(RASPIVID_STATE *state){
 
 		if (camera_still_port && camera_still_port->is_enabled)
 			mmal_port_disable(camera_still_port);
-		  
 		if (camera_video_port && camera_video_port->is_enabled)
 			mmal_port_disable(camera_video_port);
 
@@ -983,7 +995,6 @@ int close_cam(RASPIVID_STATE *state){
 		 */
 		if (camera)
 			mmal_component_disable(camera);
-			 
 		//Destroy encoder component
 		// Get rid of any port buffers first
 		if (state->splitter_pool)
