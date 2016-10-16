@@ -128,7 +128,11 @@ typedef struct
 } RASPIVID_STATE;
 
 RASPIVID_STATE state_srv;
+
+
+sensor_msgs::Image raw_msg;
 ros::Publisher image_pub;
+sensor_msgs::CompressedImage compressed_msg;
 ros::Publisher compressed_pub;
 ros::Publisher camera_info_pub;
 sensor_msgs::CameraInfo c_info;
@@ -138,7 +142,6 @@ std::string tf_prefix;
  */
 typedef struct
 {
-   unsigned char *buffer[2];                   /// File handle to write buffer data to.
    RASPIVID_STATE *pstate;              /// pointer to our state in case required in callback
    int abort;                           /// Set to 1 in callback if an error occurs to attempt to abort the capture
    int frame;
@@ -146,8 +149,6 @@ typedef struct
 } PORT_USERDATA;
 
 static void display_valid_parameters(char *app_name);
-
-
 
 
 /**
@@ -250,8 +251,12 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
       if (buffer->length)
       {
          mmal_buffer_header_mem_lock(buffer);
-         memcpy(&(pData->buffer[pData->frame & 1][pData->id]), buffer->data, buffer->length);
-		 pData->id += bytes_written;
+	 unsigned int old_msg_size = compressed_msg.data.size();
+	 unsigned int new_msg_size = old_msg_size + buffer->length ;
+	 compressed_msg.data.resize(new_msg_size);
+	 memcpy(&(compressed_msg.data[old_msg_size]), buffer->data, buffer->length);
+         /*memcpy(&(pData->buffer[pData->frame & 1][pData->id]), buffer->data, buffer->length);
+		 pData->id += bytes_written;*/
          mmal_buffer_header_mem_unlock(buffer);
       }
 
@@ -261,22 +266,20 @@ static void encoder_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buf
          pData->abort = 1;
       }
       if (buffer->flags & (MMAL_BUFFER_HEADER_FLAG_FRAME_END | MMAL_BUFFER_HEADER_FLAG_TRANSMISSION_FAILED)){
-		sensor_msgs::CompressedImage msg;
-		msg.header.seq = pData->frame;
-		msg.header.frame_id = tf_prefix;
-		msg.header.frame_id.append("/camera");
-		msg.header.stamp = ros::Time::now();
-		msg.format = "jpeg";
-		msg.data.resize(pData->id);
-		memcpy(&msg.data[0], pData->buffer[pData->frame & 1], pData->id);
-		//msg.data.insert(msg.data.end(), pData->buffer[pData->frame & 1], &(pData->buffer[pData->frame & 1][pData->id]) );
-		compressed_pub.publish(msg);
+		//sensor_msgs::CompressedImage compressed_msg;
+		compressed_msg.header.seq = pData->frame;
+		compressed_msg.header.frame_id = tf_prefix;
+		compressed_msg.header.frame_id.append("/camera");
+		compressed_msg.header.stamp = ros::Time::now();
+		compressed_msg.format = "jpeg";
+		compressed_pub.publish(compressed_msg);
 		c_info.header.seq = pData->frame;
-		c_info.header.stamp = msg.header.stamp;
-		c_info.header.frame_id = msg.header.frame_id;
+		c_info.header.stamp = compressed_msg.header.stamp;
+		c_info.header.frame_id = compressed_msg.header.frame_id;
 		camera_info_pub.publish(c_info);
 		pData->frame++;
 		pData->id = 0;
+		compressed_msg.data.clear();
 	}
    }
 
@@ -320,21 +323,22 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
    {
       int bytes_written = buffer->length;
       if (buffer->length){
-		sensor_msgs::Image msg;
-		msg.header.seq = pData->frame;
-		msg.header.frame_id = tf_prefix;
-		msg.header.frame_id.append("/camera");
-		msg.header.stamp = ros::Time::now();
+		//sensor_msgs::Image raw_msg;
+		raw_msg.header.seq = pData->frame;
+		raw_msg.header.frame_id = tf_prefix;
+		raw_msg.header.frame_id.append("/camera");
+		raw_msg.header.stamp = ros::Time::now();
+		raw_msg.is_bigendian = 0;
 		mmal_buffer_header_mem_lock(buffer);
 		if(pData->pstate->monochrome>0){
-			sensor_msgs::fillImage( msg,
+			sensor_msgs::fillImage( raw_msg,
                             sensor_msgs::image_encodings::MONO8,
                             pData->pstate->height, // height
                             pData->pstate->width, // width
                             (pData->pstate->width), // stepSize
                             buffer->data);
 		}else{
-			sensor_msgs::fillImage( msg,
+			sensor_msgs::fillImage( raw_msg,
                             sensor_msgs::image_encodings::RGB8,
                             pData->pstate->height, // height
                             pData->pstate->width, // width
@@ -342,11 +346,11 @@ static void camera_buffer_callback(MMAL_PORT_T *port, MMAL_BUFFER_HEADER_T *buff
                             buffer->data);
 		}
 		mmal_buffer_header_mem_unlock(buffer);
-		msg.is_bigendian = 0;
-		image_pub.publish(msg);
+		raw_msg.is_bigendian = 0;
+		image_pub.publish(raw_msg);
 		c_info.header.seq = pData->frame;
-		c_info.header.stamp = msg.header.stamp;
-		c_info.header.frame_id = msg.header.frame_id;
+		c_info.header.stamp = raw_msg.header.stamp;
+		c_info.header.frame_id = raw_msg.header.frame_id;
 		camera_info_pub.publish(c_info);
 		pData->frame++;
 		pData->id = 0;
@@ -859,8 +863,6 @@ int init_cam(RASPIVID_STATE *state)
       splitter_output_init(state, splitter_encoder_port);
       ROS_INFO("Ports connected");
       ROS_INFO("Initializing callbacks");
-      callback_data->buffer[0] = (unsigned char *) malloc ( state->width * state->height * 4 );
-      callback_data->buffer[1] = (unsigned char *) malloc ( state->width * state->height * 4 );
       callback_data->pstate = state;
       callback_data->abort = 0;
       callback_data->id = 0;
@@ -876,8 +878,6 @@ int init_cam(RASPIVID_STATE *state)
       //here starts the encoder section
       PORT_USERDATA * callback_data_enc = (PORT_USERDATA *) malloc (sizeof(PORT_USERDATA));
       encoder_output_port = state->encoder_component->output[0];
-      callback_data_enc->buffer[0] = (unsigned char *) malloc ( 1024 * 1024);
-      callback_data_enc->buffer[1] = (unsigned char *) malloc ( 1024 * 1024);
       // Set up our userdata - this is passed though to the callback where we need the information.
       callback_data_enc->pstate = state;
       callback_data_enc->abort = 0;
@@ -978,13 +978,7 @@ int close_cam(RASPIVID_STATE *state){
 		if (state->encoder_pool)
                 {
                         mmal_port_pool_destroy(encoder_output_port, state->encoder_pool);
-                }
-
-
-		free(pData->buffer[0]);
-		free(pData->buffer[1]);
-	        free(pData_enc->buffer[0]);
-                free(pData_enc->buffer[1]);
+             	}
 
 
 		if (encoder)
