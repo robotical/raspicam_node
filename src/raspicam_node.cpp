@@ -101,8 +101,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 /// Interval at which we check for an failure abort during capture
 
-
-
+static void signal_handler(int signal_number);
 int mmal_status_to_int(MMAL_STATUS_T status);
 
 /** Structure containing all state information for the current run
@@ -775,23 +774,6 @@ static void check_disable_port(MMAL_PORT_T *port)
       mmal_port_disable(port);
 }
 
-/**
- * Handler for sigint signals
- *
- * @param signal_number ID of incoming signal.
- *
- */
-static void signal_handler(int signal_number)
-{
-   // Going to abort on all signals
-   vcos_log_error("Aborting program\n");
-
-   // TODO : Need to close any open stuff...how?
-
-   exit(255);
-}
-
-
 
 int splitter_output_init(RASPIVID_STATE *state, struct MMAL_PORT_T* port)
 {
@@ -960,34 +942,45 @@ int close_cam(RASPIVID_STATE *state){
 		MMAL_PORT_T *camera_video_port   = camera->output[MMAL_CAMERA_VIDEO_PORT];
 		MMAL_COMPONENT_T *encoder = state->encoder_component;
 		MMAL_COMPONENT_T *splitter = state->splitter_component;
+		MMAL_PORT_T *splitter_video_output = state->splitter_component->output[0];
+		MMAL_PORT_T *splitter_encoder_output = state->splitter_component->output[1];
 		MMAL_PORT_T *encoder_output_port = state->encoder_component->output[0];
 		MMAL_PORT_T *camera_still_port = camera->output[MMAL_CAMERA_CAPTURE_PORT];
 		PORT_USERDATA * pData = (PORT_USERDATA *)camera_video_port->userdata;
 		PORT_USERDATA * pData_enc = (PORT_USERDATA *) encoder_output_port->userdata;
+
 		if (camera_still_port && camera_still_port->is_enabled)
 			mmal_port_disable(camera_still_port);
 		if (camera_video_port && camera_video_port->is_enabled)
 			mmal_port_disable(camera_video_port);
+		if(encoder_output_port) mmal_port_disable(encoder_output_port);
+		if(splitter_video_output) mmal_port_disable(splitter_video_output);
+		if(splitter_encoder_output) mmal_port_disable(splitter_encoder_output);
 
 		mmal_connection_destroy(state->encoder_connection);
                 mmal_connection_destroy(state->splitter_connection);
 		// Disable components
+		ROS_INFO("Disabling components");
 		if (encoder)
 			mmal_component_disable(encoder);
 		if (camera)
 			mmal_component_disable(camera);
+		if(splitter)
+                        mmal_component_disable(splitter);
+
 		//Destroy encoder component
 		// Get rid of any port buffers first
+		ROS_INFO("Destroying buffer pools");
 		if (state->splitter_pool)
 		{
-			mmal_port_pool_destroy(camera_video_port, state->splitter_pool);
+			mmal_port_pool_destroy(splitter_video_output, state->splitter_pool);
 		}
 		if (state->encoder_pool)
                 {
                         mmal_port_pool_destroy(encoder_output_port, state->encoder_pool);
              	}
 
-
+		ROS_INFO("Destroying components");
 		if (encoder)
 		{
 			mmal_component_destroy(encoder);
@@ -999,6 +992,12 @@ int close_cam(RASPIVID_STATE *state){
 			mmal_component_destroy(camera);
 			camera = NULL;
 		}
+		if (splitter)
+                {
+                        mmal_component_destroy(splitter);
+                        splitter = NULL;
+                }
+		ROS_INFO("Camera closed");
 		return 0;
 	}else return 1;
 }
@@ -1018,6 +1017,18 @@ bool serv_stop_cap(	std_srvs::Empty::Request  &req,
   return true;
 }
 
+/**
+ * Handler for sigint signals
+ *
+ * @param signal_number ID of incoming signal.
+ *
+ */
+static void signal_handler(int signal_number)
+{
+   vcos_log_error("Aborting program\n");
+   close_cam(&state_srv);
+   ros::shutdown();
+}
 
 
 int main(int argc, char **argv){
@@ -1025,7 +1036,6 @@ int main(int argc, char **argv){
    ros::NodeHandle n;
    camera_info_manager::CameraInfoManager c_info_man (n, "camera", "package://raspicam/calibrations/camera.yaml");
    get_status(&state_srv);
-
    if(!c_info_man.loadCameraInfo ("package://raspicam/calibrations/camera.yaml")){
 	ROS_INFO("Calibration file missing. Camera not calibrated");
    }
