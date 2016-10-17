@@ -115,6 +115,7 @@ typedef struct
    int framerate;                      /// Requested frame rate (fps)
    int quality;
    int monochrome ;
+   long int bitrate ;
    RASPICAM_CAMERA_PARAMETERS camera_parameters; /// Camera setup parameters
 
    MMAL_COMPONENT_T *camera_component;    /// Pointer to the camera component
@@ -209,6 +210,13 @@ static void get_status(RASPIVID_STATE *state)
 	state->monochrome = (temp > 0) ? 1 : 0;
    }else{
 	state->monochrome = 0 ;
+   }
+
+   if (ros::param::get("~bitrate", temp )){
+	if(temp > 25000000) temp = 25000000;
+        state->bitrate = temp ;
+   }else{
+        state->bitrate = 25000000 ;
    }
 
    if (ros::param::get("~tf_prefix",  str)){
@@ -625,76 +633,75 @@ static void destroy_splitter_component(RASPIVID_STATE *state)
     MMAL_STATUS_T status;
     MMAL_POOL_T *pool;
  
-    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_IMAGE_ENCODER, &encoder);
+    status = mmal_component_create(MMAL_COMPONENT_DEFAULT_VIDEO_ENCODER, &encoder);
 
     if (status != MMAL_SUCCESS)
     {
        vcos_log_error("Unable to create video encoder component");
        goto error;
     }
- 
+
     if (!encoder->input_num || !encoder->output_num)
     {
        status = MMAL_ENOSYS;
        vcos_log_error("Video encoder doesn't have input/output ports");
        goto error;
     }
- 
+
     encoder_input = encoder->input[0];
     encoder_output = encoder->output[0];
- 
+
     // We want same format on input and output
     mmal_format_copy(encoder_output->format, encoder_input->format);
- 
-    encoder_output->format->encoding = MMAL_ENCODING_JPEG;
- 
- 
+
+    encoder_output->format->encoding = MMAL_ENCODING_MJPEG;
     encoder_output->buffer_size = encoder_output->buffer_size_recommended;
- 
+    encoder_output->buffer_size =  256<<10 ;
+
     if (encoder_output->buffer_size < encoder_output->buffer_size_min)
        encoder_output->buffer_size = encoder_output->buffer_size_min;
- 
+
     encoder_output->buffer_num = encoder_output->buffer_num_recommended;
- 
+
     if (encoder_output->buffer_num < encoder_output->buffer_num_min)
        encoder_output->buffer_num = encoder_output->buffer_num_min;
- 
+    encoder_output->format->bitrate = state->bitrate;//default ...
     // Commit the port changes to the output port
     status = mmal_port_format_commit(encoder_output);
- 
+
     if (status != MMAL_SUCCESS)
     {
        vcos_log_error("Unable to set format on video encoder output port");
        goto error;
     }
- 
+    mmal_port_parameter_set_uint32(encoder_output, MMAL_PARAMETER_VIDEO_BIT_RATE, state->bitrate);
  // Set the JPEG quality level
-   status = mmal_port_parameter_set_uint32(encoder_output, MMAL_PARAMETER_JPEG_Q_FACTOR, state->quality);
+  
+/* status = mmal_port_parameter_set_uint32(encoder_output, MMAL_PARAMETER_JPEG_Q_FACTOR, state->quality);
 
    if (status != MMAL_SUCCESS)
    {
-      vcos_log_error("Unable to set JPEG quality");
+      ROS_INFO("Unable to set JPEG quality");
       goto error;
    }
-
-   
+   status = mmal_port_parameter_set_uint32(encoder_output, MMAL_PARAMETER_JPEG_RESTART_INTERVAL, 0);
     //  Enable component
     status = mmal_component_enable(encoder);
- 
+*/
     if (status != MMAL_SUCCESS)
     {
        vcos_log_error("Unable to enable video encoder component");
        goto error;
     }
- 
+
     /* Create pool of buffer headers for the output port to consume */
     pool = mmal_port_pool_create(encoder_output, encoder_output->buffer_num, encoder_output->buffer_size);
- 
+
     if (!pool)
     {
        vcos_log_error("Failed to create buffer header pool for encoder output port %s", encoder_output->name);
     }
- 
+
     state->encoder_pool = pool;
     state->encoder_component = encoder;
  
