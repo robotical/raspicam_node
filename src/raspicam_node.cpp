@@ -114,6 +114,8 @@ typedef struct
    int framerate;                      /// Requested frame rate (fps)
    int quality;
    int monochrome ;
+   int hflip ;
+   int vflip ;
    long int bitrate ;
    RASPICAM_CAMERA_PARAMETERS camera_parameters; /// Camera setup parameters
 
@@ -218,6 +220,20 @@ static void get_status(RASPIVID_STATE *state)
         state->bitrate = 25000000 ;
    }
 
+   if (ros::param::get("~hflip", temp )){
+        temp = (temp > 0) ? 1 : 0;
+        state->hflip = temp ;
+   }else{
+        state->hflip = 0 ;
+   }
+
+   if (ros::param::get("~vflip", temp )){
+        temp = (temp > 0) ? 1 : 0;
+        state->vflip = temp ;
+   }else{
+        state->vflip = 0 ;
+   }
+
    if (ros::param::get("~tf_prefix",  str)){
 	tf_prefix = str;
    }else{
@@ -232,6 +248,9 @@ static void get_status(RASPIVID_STATE *state)
 
    // Set up the camera_parameters to default
    raspicamcontrol_set_defaults(&state->camera_parameters);
+   //set some of the parameters defined by the user
+   state->camera_parameters.hflip = state->hflip;
+   state->camera_parameters.vflip = state->vflip;
 }
 
 
