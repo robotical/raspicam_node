@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<launch>
+    <node name="raspicam" pkg="raspicam" type="raspicam_node" output="screen" clear_params="true">
+      <param name="vflip" value="1"/>
+      <param name="hflip" value="1"/>
+      <param name="height" value="240"/>
+      <param name="width" value="320"/>
+      <param name="framerate" value="10"/>
+    </node>
+</launch>
+

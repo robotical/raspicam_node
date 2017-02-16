@@ -4,7 +4,12 @@ project(raspicam)
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
-find_package(catkin REQUIRED COMPONENTS compressed_image_transport roscpp std_msgs camera_info_manager)
+find_package(catkin REQUIRED COMPONENTS
+  image_transport
+  compressed_image_transport
+  roscpp
+  std_msgs
+  camera_info_manager)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -57,6 +62,8 @@ catkin_package(
 ###########
 ## Build ##
 ###########
+set(CMAKE_CXX_FLAGS  "${CMAKE_CXX_FLAGS} -std=c++11 -W -O2")
+
 
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
@@ -70,10 +77,10 @@ include_directories(include
 
 ## Declare a cpp library
  add_library(raspicli STATIC
-   src/RaspiCLI.cpp 
+   src/RaspiCLI.cpp
  )
  add_library(raspicamcontrol STATIC
-   src/RaspiCamControl.cpp 
+   src/RaspiCamControl.cpp
  )
 
 ## Declare a cpp executable
@@ -86,7 +93,7 @@ include_directories(include
 ## Specify libraries to link a library or executable target against
  target_link_libraries(raspicam_node
    ${catkin_LIBRARIES}
-raspicamcontrol raspicli   
+raspicamcontrol raspicli
 /opt/vc/lib/libbcm_host.so
 /opt/vc/lib/libvcos.so
 /opt/vc/lib/libmmal.so
