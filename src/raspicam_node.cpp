@@ -302,7 +302,7 @@ static void encoder_buffer_callback(MMAL_PORT_T* port,
          c_info.header.seq = pData->frame;
          c_info.header.stamp = compressed_msg.header.stamp;
          c_info.header.frame_id = compressed_msg.header.frame_id;
-         camera_info_pub.publish(c_info);
+         // camera_info_pub.publish(c_info);
          pData->frame++;
          pData->id = 0;
          compressed_msg.data.clear();
