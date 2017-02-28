@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <launch>
-    <node name="raspicam" pkg="raspicam" type="raspicam_node" output="screen" clear_params="true">
+    <node name="raspicam" pkg="raspicam" respawn="true" type="raspicam_node" output="screen" clear_params="true">
       <param name="vflip" value="1"/>
       <param name="hflip" value="1"/>
       <param name="height" value="240"/>
